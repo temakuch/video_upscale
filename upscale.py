@@ -19,6 +19,7 @@ def upscale_nn( im, path = "models/LapSRN_x4.pb"):
     
 
 class UpscaleNN():
+    """coords = (x1,y1, x2,y2)"""
     pool = MyPool(4)
     def __init__(self, frame, path="models/LapSRN_x4.pb", x1=100, y1=100, x2=240, y2=240,):
         self.x1, self.y1, self.x2, self.y2 =  x1, y1, x2, y2
@@ -29,12 +30,14 @@ class UpscaleNN():
     def run_upscale(self):
         print("RUN UPSCALE")
         self.cut_img = self.frame[self.y1:self.y2, self.x1:self.x2]
+        print(self.cut_img)
         self.res = self.pool.apply_async(upscale_nn, args=(self.cut_img, self.path), callback=self.callbacking)
         t = td.Thread(target=self.show_result)
         t.start()
 
     def callbacking(self, temp_res, *args):
-        self.cut_img = self.frame[self.y1:self.y2, self.x1:self.x2,]
+        self.cut_img = self.frame[self.y1:self.y2, self.x1:self.x2]
+        print(self.cut_img)
         self.pool.apply_async(upscale_nn, args=(self.cut_img, self.path), callback=self.callbacking)
         if isinstance(temp_res, np.ndarray):
             self.res = temp_res
@@ -44,6 +47,7 @@ class UpscaleNN():
             if isinstance(self.res, np.ndarray):
                 im = self.res[:,:,::-1]
                 cv2.imshow('Upscaled',im)
+                #cv2.imshow('cutted',self.cut_img)
                 k = cv2.waitKey(1)
                 if k == 27:
                     cv2.destroyWindow('Upscaled')
