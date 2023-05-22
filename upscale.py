@@ -30,14 +30,13 @@ class UpscaleNN():
     def run_upscale(self):
         print("RUN UPSCALE")
         self.cut_img = self.frame[self.y1:self.y2, self.x1:self.x2]
-        print(self.cut_img)
         self.res = self.pool.apply_async(upscale_nn, args=(self.cut_img, self.path), callback=self.callbacking)
         t = td.Thread(target=self.show_result)
         t.start()
 
     def callbacking(self, temp_res, *args):
         self.cut_img = self.frame[self.y1:self.y2, self.x1:self.x2]
-        print(self.cut_img)
+
         self.pool.apply_async(upscale_nn, args=(self.cut_img, self.path), callback=self.callbacking)
         if isinstance(temp_res, np.ndarray):
             self.res = temp_res
