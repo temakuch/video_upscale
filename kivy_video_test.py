@@ -4,6 +4,7 @@
 if __name__=="__main__":
     from kivy.app import App
     import sys
+    import os
     from kivy.uix.video import Video
     from kivy.uix.floatlayout import FloatLayout
     from kivy.uix.boxlayout import BoxLayout
@@ -27,6 +28,7 @@ if __name__=="__main__":
         tracker_flag = False
         NN_FLAG = False
         tracker = dlib.correlation_tracker()
+        #upscaleInstance = UpscaleNN(frame=None, path=None)
         # reference distance from zone corner to object corner
         ref_x, ref_y = 0, 0 
 
@@ -41,7 +43,7 @@ if __name__=="__main__":
             self.start_pos, self.end_pos = None, None
             #tuple to store coordinates of rectangle in cv2 Coordinates format
             self.cv_start_pos, self.cv_end_pos = None, None
-            self.upscaleInstance = UpscaleNN(frame=self.frame)
+            self.upscaleInstance = UpscaleNN(frame=self.frame, path=None)
             with self.canvas:
                 Color(0,1,0,0.3, mode="rgba")
             self.bind(pos=self.redraw, size=self.redraw)
@@ -68,13 +70,13 @@ if __name__=="__main__":
                                                   int(pos.top()),  \
                                                   int(pos.right()),\
                                                   int(pos.bottom())
-                print("tracker ", obj_x1, obj_y1, obj_x2, obj_y2)
+                #print("tracker ", obj_x1, obj_y1, obj_x2, obj_y2)
                 obj_x1, obj_y1, obj_x2, obj_y2 = self.transform_coords(obj_x1, 
                                                                        obj_y1, 
                                                                        obj_x2, 
                                                                        obj_y2, 
                                                                        to_kivy=True)
-                print("Transform tracker ", obj_x1, obj_y1, obj_x2, obj_y2)
+                #print("Transform tracker ", obj_x1, obj_y1, obj_x2, obj_y2)
                 lr_space = (self.width - self.norm_image_size[0]) / 2  # empty space in Image widget left and right of actual image
                 tb_space = (self.height - self.norm_image_size[1]) / 2  
                 with self.canvas:
@@ -131,6 +133,7 @@ if __name__=="__main__":
             self.frame = self.frame.reshape(height, width, 4)
             self.frame = cv2.cvtColor(self.frame, cv2.COLOR_RGBA2BGR)
             self.upscaleInstance.frame = self.frame
+            #print("FRAME", self.upscaleInstance.frame)
             if type(self.start_pos)==tuple and type(self.end_pos)==tuple:
                 ups = self.upscaleInstance
                 x1, y1, x2, y2 = self.transform_coords(*self.start_pos, *self.end_pos, to_cv=True)
@@ -217,8 +220,8 @@ if __name__=="__main__":
 
             nn_button = Button(text='Choose NN', 
                                 size_hint = (.10, .10),
-                                pos_hint = {'x': 0.85, 'y': 0.55},)
-                                #on_press = self.choose_nn)
+                                pos_hint = {'x': 0.85, 'y': 0.55},
+                                on_press = self.choose_nn)
 
             clean_button = Button(text='Choose video', 
                                 size_hint = (.10, .10),
@@ -242,9 +245,12 @@ if __name__=="__main__":
             self.video_source = filechooser.open_file()
             self.video.source = self.video_source[0]
 
-        #def choose_nn(self, instance, VideoExt):
-            #self.nn = filechooser.open_file()
+        def choose_nn(self, instance):
+            self.nn = filechooser.open_file()
+            self.nn = os.path.join(self.nn[0])
+            #self.upscaleInstance = UpscaleNN(frame=self.video.frame, path=self.nn)
             #self.upscaleInstance.path = self.nn[0]
+            #print("PATH TO model:", self.upscaleInstance.path)
         def play_video(self, instance):
             # play the video
             self.video.state = 'play'

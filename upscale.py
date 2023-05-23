@@ -11,7 +11,6 @@ def upscale_nn( im, path = "models/LapSRN_x4.pb"):
     sr = cv2.dnn_superres.DnnSuperResImpl_create()
     #cv2.imshow('NOT Upscaled', im)
     sr.readModel(path)
- 
     sr.setModel("lapsrn",4)
  
     result = sr.upsample(img)
@@ -29,6 +28,8 @@ class UpscaleNN():
         self.path = path 
     def run_upscale(self):
         print("RUN UPSCALE")
+        #print("PATH:", self.path)
+        #print("FRAME:", self.frame)
         self.cut_img = self.frame[self.y1:self.y2, self.x1:self.x2]
         self.res = self.pool.apply_async(upscale_nn, args=(self.cut_img, self.path), callback=self.callbacking)
         t = td.Thread(target=self.show_result)
@@ -36,6 +37,7 @@ class UpscaleNN():
 
     def callbacking(self, temp_res, *args):
         self.cut_img = self.frame[self.y1:self.y2, self.x1:self.x2]
+        print(self.path)
         self.pool.apply_async(upscale_nn, args=(self.cut_img, self.path), callback=self.callbacking)
         if isinstance(temp_res, np.ndarray):
             self.res = temp_res
@@ -44,8 +46,7 @@ class UpscaleNN():
         while 1:
             if isinstance(self.res, np.ndarray):
                 im = self.res[:,:,::-1]
-                #cv2.imshow('Upscaled',im)
-                cv2.imshow('cutted',self.cut_img)
+                cv2.imshow('Upscaled',im)
                 k = cv2.waitKey(1)
                 if k == 27:
                     cv2.destroyWindow('Upscaled')
