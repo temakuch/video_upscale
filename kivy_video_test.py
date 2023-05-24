@@ -4,7 +4,6 @@
 if __name__=="__main__":
     from kivy.app import App
     import sys
-    import os
     from kivy.uix.video import Video
     from kivy.uix.floatlayout import FloatLayout
     from kivy.uix.boxlayout import BoxLayout
@@ -29,7 +28,6 @@ if __name__=="__main__":
         tracker_flag = False
         NN_FLAG = False
         tracker = dlib.correlation_tracker()
-        #upscaleInstance = UpscaleNN(frame=None, path=None)
         # reference distance from zone corner to object corner
         ref_x, ref_y = 0, 0 
 
@@ -39,12 +37,12 @@ if __name__=="__main__":
             self.pool = None
             self.res  = None
             self.cut_img = None
-            print("Widget POS: " , self.x,self.y)
+            print("Widget POS: " , self.pos, self.size)
             #tuple to store relative coordinates of rectangle on Video Widget 
             self.start_pos, self.end_pos = None, None
             #tuple to store coordinates of rectangle in cv2 Coordinates format
             self.cv_start_pos, self.cv_end_pos = None, None
-            self.upscaleInstance = UpscaleNN(frame=self.frame, path=None)
+            self.upscaleInstance = UpscaleNN(frame=self.frame)
             with self.canvas:
                 Color(0,1,0,0.3, mode="rgba")
             self.bind(pos=self.redraw, size=self.redraw)
@@ -57,6 +55,7 @@ if __name__=="__main__":
             with self.canvas:
                 x1, y1, x2, y2 = self.x1, self.y1, self.x2, self.y2
                 if x1 and y1 and x2 and y2:
+                    Color(0,1,0,0.3, mode="rgba")
                     Line(rectangle=(x1, y1, x2-x1, y2-y1),width=2, group='rect')
                 
 
@@ -81,18 +80,15 @@ if __name__=="__main__":
                 lr_space = (self.width - self.norm_image_size[0]) / 2  # empty space in Image widget left and right of actual image
                 tb_space = (self.height - self.norm_image_size[1]) / 2  
                 with self.canvas:
-                    Line(rectangle=(obj_x1, obj_y1, obj_x2-obj_x1, obj_y2-obj_y1),width=2, group='rect')
-                dx, dy = (obj_x1-self.x1)-self.ref_x, (obj_y1-self.y1)-self.ref_y + 2*tb_space
+                    self.canvas.remove_group('rectOBJ') 
+                    Color(0,0,1,0.3, mode="rgba")
+                    Line(rectangle=(obj_x1, obj_y1 + tb_space + self.pos[1], obj_x2-obj_x1, obj_y2-obj_y1),width=2, group='rectOBJ')
+                dx, dy = (obj_x1-self.x1)-self.ref_x//2 + self.pos[0], (obj_y1-self.y1)-self.ref_y//2 + tb_space + self.pos[1]
                 self.x1, self.y1, self.x2, self.y2 = self.x1+dx, self.y1+dy, self.x2+dx, self.y2+dy
             #print((self.x1, self.y1, self.x2, self.y2))
             self.redraw()
             self.set_upscale_frame(self)
 
-        def on_texture(self, instance, texture, *args):
-            super(VideoExt, self).on_texture(instance, texture)
-            texture_coords = texture.uvpos[:]
-            # Print or use the texture_coords as needed
-            #print("Texture Coords:", texture_coords)
 
         def get_visible_image_touch_coords(self, touch):
             if not self.collide_point(*touch.pos):
@@ -125,7 +121,9 @@ if __name__=="__main__":
         
         def set_upscale_frame(self, *args):
             height, width = self.texture.height, self.texture.width
+            tb_space = (self.height - self.norm_image_size[1]) / 2
             start_flag = True
+            #print("Widget POS: " , self.pos, self.size)
             if not isinstance(self.frame, np.ndarray):
                 if self.frame == None: 
                     start_flag=False
@@ -134,11 +132,12 @@ if __name__=="__main__":
             self.frame = self.frame.reshape(height, width, 4)
             self.frame = cv2.cvtColor(self.frame, cv2.COLOR_RGBA2BGR)
             self.upscaleInstance.frame = self.frame
-            #print("FRAME", self.upscaleInstance.frame)
-            if type(self.start_pos)==tuple and type(self.end_pos)==tuple:
+            if  None not in ( self.x1, self.y1, self.x2, self.y2):
                 ups = self.upscaleInstance
-                x1, y1, x2, y2 = self.transform_coords(*self.start_pos, *self.end_pos, to_cv=True)
+                #print ("TO UPSCALE", self.x1, self.y1, self.x2, self.y2 )
+                x1, y1, x2, y2 = self.transform_coords( self.x1-self.pos[0], self.y1 -tb_space - self.pos[1], self.x2- self.pos[0], self.y2 -tb_space - self.pos[1], to_cv=True)
                 ups.x1, ups.y1, ups.x2, ups.y2  = (int(x1), int(y1), int(x2), int(y2))
+                #print ("TO UPSCALE", ups.x1, ups.y1, ups.x2, ups.y2 )
             if start_flag and not self.NN_FLAG:
                 t = td.Thread(target=self.upscaleInstance.run_upscale) 
                 t.start()
@@ -161,15 +160,7 @@ if __name__=="__main__":
                 x1, y1, x2, y2 = self.x1, self.y1, self.x2, self.y2
                 Line(rectangle=(x1, y1, x2-x1, y2-y1),width=2, group='rect')
             if not self.tracker_flag and None not in (x1, y1, x2, y2):
-                x1, y1, x2, y2 = self.transform_coords(*self.start_pos, *self.end_pos, to_cv=True) 
-                print("ZONE: ", x1, y1, x2, y2)
-                obj_x1, obj_y1, obj_x2, obj_y2 =detectVehicleCoords(self.frame[y1:y2, x1:x2])
-                print("Vehicle",obj_x1, obj_y1, obj_x2, obj_y2)
-                obj_x1, obj_y1, obj_x2, obj_y2 = x1 + obj_x1, y1 + obj_y1, x1 + obj_x2, y1 + obj_y2
-                box = dlib.rectangle(obj_x1, obj_y1, obj_x2, obj_y2)
-                self.tracker.start_track(self.frame, box)
-                self.tracker_flag = True
-                self.ref_x, self.ref_y = int(math.fabs(obj_x1-x1)), int(math.fabs(obj_y2-y2))
+                self.reload_tracker()
 
         def transform_coords(self, x1, y1, x2, y2, to_cv=False, to_kivy=False):
             if to_cv:
@@ -181,7 +172,22 @@ if __name__=="__main__":
                 x2, y2 =  self.get_texture_coords((x2, y2))
                 return x1, y2, x2, y1
             return x1, y1, x2, y2
-               
+
+        def reload_tracker(self):
+            lr_space = (self.width - self.norm_image_size[0]) / 2  # empty space in Image widget left and right of actual image
+            tb_space = (self.height - self.norm_image_size[1]) / 2
+            x1, y1, x2, y2   = self.x1, self.y1, self.x2, self.y2
+            x1, y1, x2, y2 = self.transform_coords(self.x1-self.pos[0], self.y1 -tb_space - self.pos[1], self.x2- self.pos[0], self.y2 -tb_space - self.pos[1], to_cv=True) 
+            vehicle = detectVehicleCoords(self.frame[y1:y2, x1:x2])
+            if not vehicle:
+                return
+            obj_x1, obj_y1, obj_x2, obj_y2 = vehicle
+            obj_x1, obj_y1, obj_x2, obj_y2 = x1 + obj_x1, y1 + obj_y1, x1 + obj_x2, y1 + obj_y2
+            box = dlib.rectangle(obj_x1, obj_y1, obj_x2, obj_y2)
+            self.tracker.start_track(self.frame, box)
+            self.tracker_flag = True
+            self.ref_x, self.ref_y = int(math.fabs(obj_x1-x1)), int(math.fabs(obj_y2-y2))
+
     class VideoApp(App):
         def build(self):
             # create a Video widget to display the video filechooser.video_source
@@ -201,50 +207,66 @@ if __name__=="__main__":
             #video_box.add_widget(self.video)
             
             # create buttons to play, pause, and stop the video
-            upscale_button = Button(text='Upscale',
-                                size_hint = (.10, .10),
-                                pos_hint = {'x': 0.15, 'y': 0.01},)
-            
             tracking_button = Button(text='Tracking', 
-                                size_hint = (.10, .10),
-                                pos_hint = {'x': 0.75, 'y': 0.01},)
+                                size_hint = (.15, .12),
+                                pos_hint = {'x': 0.825, 'y': 0.20},
+                                font_size= 18,
+                                on_press = self.toggle_tracker,
+                                background_color= [0,1,0,1])
             
             play_button = Button(text='Play', 
-                                size_hint = (.10, .10),
-                                pos_hint = {'x': 0.85, 'y': 0.85},
+                                size_hint = (.15, .12),
+                                pos_hint = {'x': 0.825, 'y': 0.80},
+                                font_size= 18,
                                 on_press=self.play_video)
 
             stop_button = Button(text='Stop', 
-                                size_hint = (.10, .10),
-                                pos_hint = {'x': 0.85, 'y': 0.7},
+                                size_hint = (.15, .12),
+                                pos_hint = {'x': 0.825, 'y': 0.65},
+                                font_size= 18,
                                 on_press=self.pause_video)
 
             nn_button = Button(text='Choose NN', 
-                                size_hint = (.10, .10),
-                                pos_hint = {'x': 0.85, 'y': 0.55},
+                                size_hint = (.15, .12),
+                                pos_hint = {'x': 0.825, 'y': 0.50},
+                                font_size= 18,
                                 on_press = self.choose_nn)
 
             clean_button = Button(text='Choose video', 
-                                size_hint = (.10, .10),
-                                pos_hint = {'x': 0.85, 'y': 0.4},
+                                size_hint = (.15, .12),
+                                pos_hint = {'x': 0.825, 'y': 0.35},
+                                font_size= 18,
                                 on_press = self.choose_video)
+            self.path_label = Label(text="Оберіть відео файл",
+                               size_hint = (0.1, 0.1),
+                               pos_hint = {'x': 0.40, 'y': 0.015},
+                               font_size= 18,)
 
 
             # add the buttons to the layout
-            layout.add_widget(upscale_button)
             layout.add_widget(tracking_button)
             layout.add_widget(play_button)
             layout.add_widget(stop_button)
             layout.add_widget(nn_button)
             layout.add_widget(clean_button)
+            layout.add_widget(self.path_label)
             
             # bind the state of the Video widget to update the play/pause button
             self.video.bind(state=self.update_play_pause_button)
             return layout
-        
+        def toggle_tracker(self, instance):
+            self.video.tracker_flag = not self.video.tracker_flag
+            if self.video.tracker_flag:
+                instance.background_color= [0,1,0,1]
+                instance.text = "Tracking"
+                self.video.reload_tracker()
+            else:
+                instance.background_color= [1,0,0,1] 
+                instance.text = "Tracking OFF"
         def choose_video(self, instance):
             self.video_source = filechooser.open_file()
             self.video.source = self.video_source[0]
+            self.path_label.text = f"Шлях до обраного вами файлу: {self.video_source[0]}"
 
         def choose_nn(self, instance):
             self.nn = filechooser.open_file()
